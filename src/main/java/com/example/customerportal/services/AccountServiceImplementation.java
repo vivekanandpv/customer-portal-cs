@@ -5,6 +5,7 @@ import com.example.customerportal.entities.Customer;
 import com.example.customerportal.exceptions.DomainInvariantException;
 import com.example.customerportal.exceptions.RecordNotFoundException;
 import com.example.customerportal.repositories.AccountRepository;
+import com.example.customerportal.repositories.CustomerRepository;
 import com.example.customerportal.utils.DomainMapper;
 import com.example.customerportal.viewmodels.AccountCreateViewModel;
 import com.example.customerportal.viewmodels.AccountUpdateViewModel;
@@ -19,14 +20,17 @@ import java.util.stream.Collectors;
 @Service
 public class AccountServiceImplementation implements AccountService {
     private final AccountRepository accountRepository;
+    private final CustomerRepository customerRepository;
     private final DomainMapper mapper;
 
     public AccountServiceImplementation
             (
                     AccountRepository accountRepository,
+                    CustomerRepository customerRepository,
                     DomainMapper mapper
             ) {
         this.accountRepository = accountRepository;
+        this.customerRepository = customerRepository;
         this.mapper = mapper;
     }
 
@@ -61,14 +65,25 @@ public class AccountServiceImplementation implements AccountService {
 
     @Override
     public AccountViewModel create(AccountCreateViewModel viewModel) {
+        Customer customer = customerRepository.findById(viewModel.getCustomerId())
+                .orElseThrow(
+                        () ->
+                                new RecordNotFoundException(
+                                        String.format("Customer with id %d is not found", viewModel.getCustomerId())
+                                )
+                );
+
         Account account = new Account();
         BeanUtils.copyProperties(viewModel, account);
         account.setActive(true);
         account.setOpenedOn(LocalDate.now());
+        account.setCustomer(customer);
+        customer.getAccounts().add(account);
 
         accountRepository.saveAndFlush(account);
+        customerRepository.saveAndFlush(customer);
 
-        return get(account.getId());
+        return mapper.toViewModel(account, true);
     }
 
     @Override
